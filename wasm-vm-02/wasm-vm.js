@@ -1,17 +1,8 @@
-import assert from "node:assert";
-import test from "node:test";
+import assert from 'node:assert';
+import test from 'node:test';
 
 
-import {
-  I32,
-  drop,
-  i32,
-  instr,
-  nop,
-  vmToData,
-  Stack,
-  VM,
-} from "./02-wasm-vm.js";
+import {I32, drop, i32, instr, nop, Stack, VM} from './wasm-vm-01.js';
 
 
 
@@ -34,7 +25,7 @@ const local = {};
 local.get = (index) =>
   instr(
     0x20,
-    "local.get",
+    'local.get',
     (vm) => {
       assertLocalIndexInRange(vm.locals, index);
       const value = vm.locals[index];
@@ -44,17 +35,17 @@ local.get = (index) =>
   );
 
 
-test("local.get", () => {
+test('local.get', () => {
   const vm = new VMLocals([local.get(0)], [i32(100)]);
   vm.step();
-  assert.deepStrictEqual(vmToData(vm), [i32(100)]);
+  assert.deepStrictEqual(vm.stack.items, [i32(100)]);
 });
 
 
 local.set = (index) =>
   instr(
     0x21,
-    "local.set",
+    'local.set',
     (vm) => {
       assertLocalIndexInRange(vm.locals, index);
       const value = vm.pop();
@@ -64,11 +55,11 @@ local.set = (index) =>
   );
 
 
-test("local.set", () => {
+test('local.set', () => {
   const vm = new VMLocals([i32.const(42), local.set(0)], [i32(0)]);
   vm.step();
   vm.step();
-  assert.deepStrictEqual(vmToData(vm), []);
+  assert.deepStrictEqual(vm.stack.items, []);
   assert.strictEqual(vm.locals[0].value, 42);
 });
 
@@ -76,7 +67,7 @@ test("local.set", () => {
 local.tee = (index) =>
   instr(
     0x22,
-    "local.tee",
+    'local.tee',
     (vm) => {
       assertLocalIndexInRange(vm.locals, index);
       const value = vm.peek();
@@ -86,12 +77,12 @@ local.tee = (index) =>
   );
 
 
-test("local.tee", () => {
+test('local.tee', () => {
   const vm = new VMLocals([i32.const(42), local.tee(0)], [i32(0)]);
   vm.step();
   vm.step();
   assert.strictEqual(vm.locals[0].value, 42);
-  assert.deepStrictEqual(vmToData(vm), [i32(42)]);
+  assert.deepStrictEqual(vm.stack.items, [i32(42)]);
 });
 
 
@@ -128,10 +119,10 @@ class CallFrame {
     let pc = this.pc;
     while (remainingBlocks > 0) {
       pc += 1;
-      const { name } = this.instructions[pc];
-      if (name === "end") {
+      const {name} = this.instructions[pc];
+      if (name === 'end') {
         remainingBlocks -= 1;
-      } else if (name === "block" || name === "loop" || name === "if") {
+      } else if (name === 'block' || name === 'loop' || name === 'if') {
         remainingBlocks += 1;
       }
     }
@@ -142,10 +133,10 @@ class CallFrame {
     let pc = this.pc;
     while (remainingBlocks > 0) {
       pc += 1;
-      const { name } = this.instructions[pc];
-      if (name === "else") {
+      const {name} = this.instructions[pc];
+      if (name === 'else') {
         remainingBlocks -= 1;
-      } else if (name === "if") {
+      } else if (name === 'if') {
         remainingBlocks += 1;
       }
     }
@@ -191,18 +182,18 @@ class CallFrame {
 }
 
 
-const block = instr(0x02, "block", (vm) => {
+const block = instr(0x02, 'block', (vm) => {
   const breakTargetPc = vm.findMatchingEndPc();
   vm.pushFrame(new BlockFrame([], breakTargetPc));
 });
 
 
-const end = instr(0x0b, "end", (vm) => {
+const end = instr(0x0b, 'end', (vm) => {
   vm.popFrame();
 });
 
 
-test("block and end work", () => {
+test('block and end work', () => {
   const vm = new CallFrame([block, end]);
   vm.step();
   assert.strictEqual(vm.blocks.length, 2);
@@ -216,7 +207,7 @@ function callFrameToData(callFrame) {
 }
 
 
-test("block stacks work", () => {
+test('block stacks work', () => {
   const vm = new CallFrame([
     i32.const(5),
     block,
@@ -249,7 +240,7 @@ test("block stacks work", () => {
 const br = (labelidx) =>
   instr(
     0x0c,
-    "br",
+    'br',
     (vm) => {
       vm.breakToLabel(labelidx);
     },
@@ -257,7 +248,7 @@ const br = (labelidx) =>
   );
 
 
-test("br works", () => {
+test('br works', () => {
   const vm = new CallFrame([
     i32.const(5),
     block,
@@ -287,7 +278,7 @@ test("br works", () => {
 const br_if = (labelidx) =>
   instr(
     0x0d,
-    "br_if",
+    'br_if',
     (vm) => {
       const condValue = vm.popI32();
       if (condValue !== 0) {
@@ -298,7 +289,7 @@ const br_if = (labelidx) =>
   );
 
 
-test("br_if works", () => {
+test('br_if works', () => {
   const vm = new CallFrame([
     i32.const(5),
     block,
@@ -328,13 +319,13 @@ test("br_if works", () => {
 });
 
 
-const loop = instr(0x03, "loop", (vm) => {
+const loop = instr(0x03, 'loop', (vm) => {
   // rt.pc - 1 as target because step will increment pc after
   vm.pushFrame(new BlockFrame([], vm.pc - 1));
 });
 
 
-test("loop breaks to the top", () => {
+test('loop breaks to the top', () => {
   const vm = new CallFrame([nop, loop, br(0), end]);
   vm.step();
   vm.step();
@@ -344,7 +335,7 @@ test("loop breaks to the top", () => {
 });
 
 
-const if_ = instr(0x04, "if", (vm) => {
+const if_ = instr(0x04, 'if', (vm) => {
   const condValue = vm.popI32().value;
   if (condValue !== 0) {
     const breakTargetPc = vm.findMatchingEndPc();
@@ -358,13 +349,13 @@ const if_ = instr(0x04, "if", (vm) => {
 });
 
 
-const else_ = instr(0x05, "else", (vm) => {
+const else_ = instr(0x05, 'else', (vm) => {
   const frame = vm.popFrame();
   vm.pc = frame.breakTargetPc;
 });
 
 
-test("if(false) jumps past else", () => {
+test('if(false) jumps past else', () => {
   const vm = new CallFrame([
     i32.const(0),
     if_,
@@ -382,7 +373,7 @@ test("if(false) jumps past else", () => {
 });
 
 
-test("if(true) enters body", () => {
+test('if(true) enters body', () => {
   const vm = new CallFrame([
     i32.const(1),
     if_,
@@ -400,7 +391,7 @@ test("if(true) enters body", () => {
 });
 
 
-test("else jumps past end", () => {
+test('else jumps past end', () => {
   const vm = new CallFrame([
     i32.const(1),
     if_,
@@ -421,7 +412,7 @@ test("else jumps past end", () => {
 });
 
 
-test("if(true) jumps past nested ends/elses", () => {
+test('if(true) jumps past nested ends/elses', () => {
   const vm = new CallFrame([
     i32.const(1),
     if_,
@@ -447,7 +438,7 @@ test("if(true) jumps past nested ends/elses", () => {
 });
 
 
-test("if(false) jumps past nested ends/elses", () => {
+test('if(false) jumps past nested ends/elses', () => {
   const vm = new CallFrame([
     i32.const(0),
     if_,
@@ -516,7 +507,7 @@ class Instance {
     this.callStack.push(calledFrame);
   }
   step() {
-    const { currentFrame } = this;
+    const {currentFrame} = this;
     const instruction = currentFrame.instructions[currentFrame.pc];
     instruction.eval(this);
     // this will increment pc in caller frame if instruction is a call
@@ -570,7 +561,7 @@ function instanceToData(instance) {
 }
 
 
-test("single function instance", () => {
+test('single function instance', () => {
   const instance = new Instance();
   assert.deepStrictEqual(instanceToData(instance), []);
   const fn = new Func([], [], [], [nop]);
@@ -583,10 +574,10 @@ test("single function instance", () => {
 
 
 const call = (index) =>
-  instr(0x10, "call", (rt) => rt.callFunction(index), index);
+  instr(0x10, 'call', (rt) => rt.callFunction(index), index);
 
 
-test("call instruction", () => {
+test('call instruction', () => {
   const instance = new Instance();
   assert.deepStrictEqual(instanceToData(instance), []);
   const fn1 = new Func([], [], [], [call(1)]);
@@ -603,7 +594,7 @@ test("call instruction", () => {
 });
 
 
-test("call fn returns instruction", () => {
+test('call fn returns instruction', () => {
   const instance = new Instance();
   assert.deepStrictEqual(instanceToData(instance), []);
   const fn1 = new Func([], [], [], [i32.const(10), call(1)]);
@@ -635,7 +626,7 @@ const global = {};
 global.get = (index) =>
   instr(
     0x23,
-    "global.get",
+    'global.get',
     (vm) => {
       assertLocalIndexInRange(vm.globals, index);
       const value = vm.globals[index];
@@ -645,7 +636,7 @@ global.get = (index) =>
   );
 
 
-test("global.get", () => {
+test('global.get', () => {
   const instance = new Instance();
   instance.globals.push(i32(100));
   instance.addFunction(new Func([], [], [], [global.get(0), nop]));
@@ -658,7 +649,7 @@ test("global.get", () => {
 global.set = (index) =>
   instr(
     0x24,
-    "global.set",
+    'global.set',
     (vm) => {
       assertGlobalIndexInRange(vm.globals, index);
       const value = vm.pop();
@@ -668,7 +659,7 @@ global.set = (index) =>
   );
 
 
-test("global.set", () => {
+test('global.set', () => {
   const instance = new Instance();
   instance.globals.push(i32(0));
   instance.addFunction(new Func([], [], [], [i32.const(42), global.set(0)]));
@@ -679,4 +670,4 @@ test("global.set", () => {
 });
 
 
-export { local, global };
+export {local, global};
